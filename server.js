@@ -3,11 +3,11 @@
 WEB322 – Assignment 02
 I declare that this assignment is my own work in accordance with Seneca  Academic Policy.  No part *  of this assignment has been copied manually or electronically from any other source (including 3rd party web sites) or distributed to other students.
 
-Name: ______________________ 
-Student ID: ______________ 
-Date: ________________
-Cyclic Web App URL: _______________________________________________________
-GitHub Repository URL: ______________________________________________________
+Name: Kennedy Emefiena 
+Student ID: 143744209
+Date: 7th June 2024
+Cyclic Web App URL: https://web322-app-kennedy-emefienas-projects.vercel.app/
+GitHub Repository URL: https://github.com/Ken1990/Web322-app.git
 
 ********************************************************************************/
 
