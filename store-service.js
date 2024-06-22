@@ -54,4 +54,52 @@ async function getCategories() {
   });
 }
 
-module.exports = { initialize, getAllItems, getPublishedItems, getCategories };
+
+async function addItem(itemData){
+  return new Promise((resolve, reject) => {
+   itemData.published = itemData.published ? false : true;
+   itemData.id = items.length + 1;
+   let now = new Date();
+   itemData.itemDate = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+   items.push(itemData);
+   resolve();
+  })
+}
+
+async function getPostsByCategory(category){
+  return new Promise((resolve,reject)=>{
+      let item_f = items.filter(item=>item.category == category);
+
+      if(post_f.length == 0){
+          reject("SORRY ERROR!!")
+      }else{
+          resolve(item_f);
+      }
+  });
+}
+
+async function getPostById(id){
+  return new Promise((resolve,reject)=>{
+      let postfound = posts.find(post => post.id == id);
+
+      if(postfound){
+          resolve(postfound);
+      }else{
+          reject("no result returned");
+      }
+  });
+}
+
+async function getPostsByMinDate(minDateStr) {
+  return new Promise((resolve, reject) => {
+      let item_f = items.filter(item => (new Date(item.itemDate)) >= (new Date(minDateStr)))
+
+      if (item_f.length == 0) {
+          reject("SORRY ERROR!!")
+      } else {
+          resolve(item_f);
+      }
+  });
+}
+
+module.exports = { initialize, getAllItems, getPublishedItems, getCategories, addItem, getPostsByCategory, getPostById,getPostsByMinDate };
