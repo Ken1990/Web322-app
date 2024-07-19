@@ -93,7 +93,6 @@ async function getPostById(id){
 async function getPostsByMinDate(minDateStr) {
   return new Promise((resolve, reject) => {
       let item_f = items.filter(item => (new Date(item.itemDate)) >= (new Date(minDateStr)))
-
       if (item_f.length == 0) {
           reject("SORRY ERROR!!")
       } else {
