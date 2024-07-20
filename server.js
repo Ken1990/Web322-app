@@ -14,9 +14,11 @@ GitHub Repository URL: https://github.com/Ken1990/Web322-app.git
 const express = require("express");
 const path = require("path");
 const itemData = require("./store-service");
+
 const multer = require("multer");
 const cloudinary = require('cloudinary').v2
 const streamifier = require('streamifier')
+const stripJs = require('strip-js');
 const upload = multer();
 
 
@@ -179,11 +181,12 @@ app.get('/shop/:id', async (req, res) => {
 app.get("/categories", (req, res) => {
   itemData
     .getCategories()
-    .then((data) => {
+    .then(data => {
+      console.log(data)
       res.render('categories',{ categories: data });
     })
     .catch((error) => {
-      res.status(500).render({ message: 'no results' });
+      res.status(500).render('categories',{ message: 'no results' });
     });
 });
 
@@ -249,7 +252,7 @@ app.post('/items/add', upload.single('featureImage'), async (req, res) => {
 
     async function upload(req) {
       let result = await streamUpload(req);
-      console.log(result);
+ 
       return result;
     }
 

@@ -57,7 +57,7 @@ async function getCategories() {
 
 async function addItem(itemData){
   return new Promise((resolve, reject) => {
-   itemData.published = itemData.published ? false : true;
+   itemData.published = itemData.published ? true : false;
    itemData.id = items.length + 1;
    let now = new Date();
    itemData.itemDate = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
