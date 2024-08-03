@@ -12,7 +12,6 @@ GitHub Repository URL: https://github.com/Ken1990/Web322-app.git
 ********************************************************************************/
 
 const express = require("express");
-const path = require("path");
 const itemData = require("./store-service");
 
 const multer = require("multer");
@@ -22,7 +21,7 @@ const stripJs = require('strip-js');
 const upload = multer();
 
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8000;
 const app = express();
 app.use(express.static(__dirname + '/public'));
 
@@ -190,6 +189,29 @@ app.get("/categories", (req, res) => {
     });
 });
 
+app.get('/categories/add', (req, res) => {
+  res.render('addCategory');
+});
+
+app.post('/categories/add', (req, res) => {
+  storeService.addCategory(req.body)
+      .then(() => res.redirect('/categories'))
+      .catch(err => res.status(500).send("Unable to add category"));
+});
+
+app.get('/categories/delete/:id', (req, res) => {
+  storeService.deleteCategoryById(req.params.id)
+      .then(() => res.redirect('/categories'))
+      .catch(err => res.status(500).send("Unable to remove category / Category not found"));
+});
+
+app.get('/items/delete/:id', (req, res) => {
+  storeService.deleteItemById(req.params.id)
+      .then(() => res.redirect('/items'))
+      .catch(err => res.status(500).send("Unable to remove item / Item not found"));
+});
+
+
 app.get("/published", (req, res) => {
   itemData
     .getPublishedItems()
@@ -280,9 +302,11 @@ app.use((req, res) => {
   res.status(404).render('404');
 });
 
-app.listen(PORT, () => {
-  console.log(`Express http server listening on port ${PORT}`);
-});
+itemData.initialize().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Express http server listening on port ${PORT}`);
+  });
+})
 
 
 
