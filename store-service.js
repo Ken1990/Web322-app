@@ -4,6 +4,7 @@ const {PGHOST, PGDATABASE, PGUSER, PGPASSWORD} = process.env;
 
 const sequelize = new Sequelize(PGDATABASE, PGUSER, PGPASSWORD, {
   host: PGHOST,
+  dialectModule: require('pg'),
   dialect: 'postgres',
   port: 5432,
   dialectOptions: {
