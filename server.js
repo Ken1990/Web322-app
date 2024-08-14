@@ -13,59 +13,153 @@ GitHub Repository URL: https://github.com/Ken1990/Web322-app.git
 
 const express = require("express");
 const itemData = require("./store-service");
+const authData = require("./auth-service");
 
 const multer = require("multer");
-const cloudinary = require('cloudinary').v2
-const streamifier = require('streamifier')
-const stripJs = require('strip-js');
+const cloudinary = require("cloudinary").v2;
+const streamifier = require("streamifier");
+const stripJs = require("strip-js");
 const upload = multer();
-
+const clientSessions = require("client-sessions");
 
 const PORT = process.env.PORT || 8000;
 const app = express();
-app.use(express.static(__dirname + '/public'));
+app.use(express.static(__dirname + "/public"));
 
-const exphbs = require('express-handlebars');
-app.engine('hbs', exphbs.engine({
-  extname: '.hbs',
-  helpers: {
-    navLink: function (url, options) {
-      return '<li class="nav-item"><a '  +
-        (url == app.locals.activeRoute ? ' class="nav-link active" ' : 'class="nav-link"') +
-        ' href="' + url + '">' + options.fn(this) + "</a></li>";
+const exphbs = require("express-handlebars");
+app.engine(
+  "hbs",
+  exphbs.engine({
+    extname: ".hbs",
+    helpers: {
+      navLink: function (url, options) {
+        return (
+          '<li class="nav-item"><a ' +
+          (url == app.locals.activeRoute
+            ? ' class="nav-link active" '
+            : 'class="nav-link"') +
+          ' href="' +
+          url +
+          '">' +
+          options.fn(this) +
+          "</a></li>"
+        );
+      },
+      equal: function (lvalue, rvalue, options) {
+        if (arguments.length < 3)
+          throw new Error("Handlebars Helper equal needs 2 parameters");
+        if (lvalue != rvalue) {
+          return options.inverse(this);
+        } else {
+          return options.fn(this);
+        }
+      },
+      safeHTML: function (context) {
+        return stripJs(context);
+      },
     },
-    equal: function (lvalue, rvalue, options) {
-      if (arguments.length < 3)
-        throw new Error("Handlebars Helper equal needs 2 parameters");
-      if (lvalue != rvalue) {
-        return options.inverse(this);
-      } else {
-        return options.fn(this);
-      }
-    },
-    safeHTML: function (context) {
-      return stripJs(context);
-    }
-  }
-}));
-app.set('view engine', 'hbs');
-app.set('views', './views');
+  })
+);
+app.set("view engine", "hbs");
+app.set("views", "./views");
 
 cloudinary.config({
-  cloud_name: 'dug4mdz23',
-  api_key: '925334453272765',
-  api_secret: 'e1GlEeXsog2e-BWTFWfxEn-SFGE',
-  secure: true
+  cloud_name: "dug4mdz23",
+  api_key: "925334453272765",
+  api_secret: "e1GlEeXsog2e-BWTFWfxEn-SFGE",
+  secure: true,
 });
+
+
+app.use(
+  clientSessions({
+    cookieName: "session",
+    secret: process.env.SECRETS,
+    duration: 24 * 60 * 60 * 1000,
+    activeDuration: 1000 * 60 * 5,
+  })
+);
+
+app.use(function (req, res, next) {
+  res.locals.session = req.session;
+  next();
+});
+
+function ensureLogin(req, res, next) {
+  if (!req.session.userName) {
+    res.redirect("/login");
+  } else {
+    next();
+  }
+}
+
 
 app.use(function (req, res, next) {
   let route = req.path.substring(1);
-  app.locals.activeRoute = "/" + (isNaN(route.split('/')[1]) ? route.replace(/\/(?!.*)/, "") : route.replace(/\/(.*)/, ""));
+  app.locals.activeRoute =
+    "/" +
+    (isNaN(route.split("/")[1])
+      ? route.replace(/\/(?!.*)/, "")
+      : route.replace(/\/(.*)/, ""));
   app.locals.viewingCategory = req.query.category;
   next();
 });
 
+app.get("/login", async (req, res) => {
+  try {
+    res.render("login");
+  } catch (error) {
+    res.status(500).send(error);
+  }
+});
 
+app.post("/login", (req, res) => {
+  req.body.userAgent = req.get("User-Agent");
+  authData
+    .checkUser(req.body)
+    .then((user) => {
+      req.session.user = {
+        userName: user.userName,
+        email: user.email,
+        loginHistory: user.loginHistory,
+      };
+      res.redirect("/items");
+    })
+    .catch((err) => {
+      res.render("login", { errorMessage: err, userName: req.body.userName });
+    });
+});
+
+app.get("/logout", (req, res) => {
+  req.session.reset();
+  res.redirect("/");
+});
+
+app.get("register", async (req, res) => {
+  try {
+    res.render("register");
+  } catch (error) {
+    res.status(500).send(error);
+  }
+});
+
+app.post("register", async (req, res) => {
+  authData
+    .registerUser(req.body)
+    .then(() => {
+      res.render("register", { successMessage: "User created" });
+    })
+    .catch((err) => {
+      res.render("register", {
+        errorMessage: err,
+        userName: req.body.userName,
+      });
+    });
+});
+
+app.get("/userHistory", ensureLogin, (req, res) => {
+  res.render("userHistory");
+});
 
 app.get("/", async (req, res) => {
   try {
@@ -75,15 +169,15 @@ app.get("/", async (req, res) => {
   }
 });
 
-app.get("/about", async (req, res) => {
+app.get("/about", ensureLogin, async (req, res) => {
   try {
-    res.render('about');
+    res.render("about");
   } catch (error) {
     res.status(500).send(error);
   }
 });
 
-app.get("/shop", async (req, res) => {
+app.get("/shop", ensureLogin, async (req, res) => {
   // Declare an object to store properties for the view
   let viewData = {};
 
@@ -127,90 +221,93 @@ app.get("/shop", async (req, res) => {
   res.render("shop", { data: viewData });
 });
 
-app.get('/shop/:id', async (req, res) => {
-
+app.get("/shop/:id", ensureLogin, async (req, res) => {
   // Declare an object to store properties for the view
   let viewData = {};
 
-  try{
+  try {
+    // declare empty array to hold "item" objects
+    let items = [];
 
-      // declare empty array to hold "item" objects
-      let items = [];
+    // if there's a "category" query, filter the returned items by category
+    if (req.query.category) {
+      // Obtain the published "items" by category
+      items = await itemData.getPublishedItemsByCategory(req.query.category);
+    } else {
+      // Obtain the published "items"
+      items = await itemData.getPublishedItems();
+    }
 
-      // if there's a "category" query, filter the returned items by category
-      if(req.query.category){
-          // Obtain the published "items" by category
-          items = await itemData.getPublishedItemsByCategory(req.query.category);
-      }else{
-          // Obtain the published "items"
-          items = await itemData.getPublishedItems();
-      }
+    // sort the published items by itemDate
+    items.sort((a, b) => new Date(b.itemDate) - new Date(a.itemDate));
 
-      // sort the published items by itemDate
-      items.sort((a,b) => new Date(b.itemDate) - new Date(a.itemDate));
-
-      // store the "items" and "item" data in the viewData object (to be passed to the view)
-      viewData.items = items;
-
-  }catch(err){
-      viewData.message = "no results";
+    // store the "items" and "item" data in the viewData object (to be passed to the view)
+    viewData.items = items;
+  } catch (err) {
+    viewData.message = "no results";
   }
 
-  try{
-      // Obtain the item by "id"
-      viewData.item = await itemData.getItemById(req.params.id);
-  }catch(err){
-      viewData.message = "no results"; 
+  try {
+    // Obtain the item by "id"
+    viewData.item = await itemData.getItemById(req.params.id);
+  } catch (err) {
+    viewData.message = "no results";
   }
 
-  try{
-      // Obtain the full list of "categories"
-      let categories = await itemData.getCategories();
+  try {
+    // Obtain the full list of "categories"
+    let categories = await itemData.getCategories();
 
-      // store the "categories" data in the viewData object (to be passed to the view)
-      viewData.categories = categories;
-  }catch(err){
-      viewData.categoriesMessage = "no results"
+    // store the "categories" data in the viewData object (to be passed to the view)
+    viewData.categories = categories;
+  } catch (err) {
+    viewData.categoriesMessage = "no results";
   }
 
   // render the "shop" view with all of the data (viewData)
-  res.render("shop", {data: viewData})
+  res.render("shop", { data: viewData });
 });
 
-app.get("/categories", (req, res) => {
+app.get("/categories", ensureLogin, (req, res) => {
   itemData
     .getCategories()
-    .then(data => {
-      console.log(data)
-      res.render('categories',{ categories: data });
+    .then((data) => {
+      console.log(data);
+      res.render("categories", { categories: data });
     })
     .catch((error) => {
-      res.status(500).render('categories',{ message: 'no results' });
+      res.status(500).render("categories", { message: "no results" });
     });
 });
 
-app.get('/categories/add', (req, res) => {
-  res.render('addCategory');
+app.get("/categories/add", (req, res) => {
+  res.render("addCategory");
 });
 
-app.post('/categories/add', (req, res) => {
-  storeService.addCategory(req.body)
-      .then(() => res.redirect('/categories'))
-      .catch(err => res.status(500).send("Unable to add category"));
+app.post("/categories/add", (req, res) => {
+  storeService
+    .addCategory(req.body)
+    .then(() => res.redirect("/categories"))
+    .catch((err) => res.status(500).send("Unable to add category"));
 });
 
-app.get('/categories/delete/:id', (req, res) => {
-  storeService.deleteCategoryById(req.params.id)
-      .then(() => res.redirect('/categories'))
-      .catch(err => res.status(500).send("Unable to remove category / Category not found"));
+app.get("/categories/delete/:id", (req, res) => {
+  storeService
+    .deleteCategoryById(req.params.id)
+    .then(() => res.redirect("/categories"))
+    .catch((err) =>
+      res.status(500).send("Unable to remove category / Category not found")
+    );
 });
 
-app.get('/items/delete/:id', (req, res) => {
-  storeService.deleteItemById(req.params.id)
-      .then(() => res.redirect('/items'))
-      .catch(err => res.status(500).send("Unable to remove item / Item not found"));
+app.get("/items/delete/:id", (req, res) => {
+  storeService
+    .deleteItemById(req.params.id)
+    .then(() => res.redirect("/items"))
+    .catch((err) =>
+      res.status(500).send("Unable to remove item / Item not found")
+    );
 });
-
 
 app.get("/published", (req, res) => {
   itemData
@@ -224,7 +321,6 @@ app.get("/published", (req, res) => {
 });
 
 app.get("/items", async (req, res) => {
-
   let queryPromise = null;
 
   if (req.query.category) {
@@ -232,41 +328,37 @@ app.get("/items", async (req, res) => {
   } else if (req.query.minDate) {
     queryPromise = itemData.getPostsByMinDate(req.query.minDate);
   } else {
-    queryPromise = itemData.getAllItems()
+    queryPromise = itemData.getAllItems();
   }
 
-  queryPromise.then(data => {
-    res.render('items',{ items: data });
-  }).catch(err => {
-    res.status(500).render('items', {message: 'no results'});
-  })
-
+  queryPromise
+    .then((data) => {
+      res.render("items", { items: data });
+    })
+    .catch((err) => {
+      res.status(500).render("items", { message: "no results" });
+    });
 });
 
 app.get("/items/add", async (req, res) => {
   try {
-    res.render('addItem');
+    res.render("addItem");
   } catch (error) {
     res.status(500).send(error);
   }
 });
 
-
-
-app.post('/items/add', upload.single('featureImage'), async (req, res) => {
-
+app.post("/items/add", upload.single("featureImage"), async (req, res) => {
   if (req.file) {
     let streamUpload = (req) => {
       return new Promise((resolve, reject) => {
-        let stream = cloudinary.uploader.upload_stream(
-          (error, result) => {
-            if (result) {
-              resolve(result);
-            } else {
-              reject(error);
-            }
+        let stream = cloudinary.uploader.upload_stream((error, result) => {
+          if (result) {
+            resolve(result);
+          } else {
+            reject(error);
           }
-        );
+        });
 
         streamifier.createReadStream(req.file.buffer).pipe(stream);
       });
@@ -274,7 +366,7 @@ app.post('/items/add', upload.single('featureImage'), async (req, res) => {
 
     async function upload(req) {
       let result = await streamUpload(req);
- 
+
       return result;
     }
 
@@ -289,24 +381,29 @@ app.post('/items/add', upload.single('featureImage'), async (req, res) => {
     req.body.featureImage = imageUrl;
 
     // TODO: Process the req.body and add it as a new Item before redirecting to /items
-    itemData.addItem(req.body).then(item => {
-      res.redirect("/items");
-    }).catch(err => {
-      res.status(500).send(err)
-    })
+    itemData
+      .addItem(req.body)
+      .then((item) => {
+        res.redirect("/items");
+      })
+      .catch((err) => {
+        res.status(500).send(err);
+      });
   }
-
 });
 
 app.use((req, res) => {
-  res.status(404).render('404');
+  res.status(404).render("404");
 });
 
-itemData.initialize().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Express http server listening on port ${PORT}`);
+itemData
+  .initialize()
+  .then(authData.initialize)
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Express http server listening on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.log("Unable to connect to server \n", err);
   });
-})
-
-
-
