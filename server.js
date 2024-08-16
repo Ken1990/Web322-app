@@ -1,6 +1,6 @@
 /*********************************************************************************
 
-WEB322 – Assignment 02
+WEB322 – Assignment 06
 I declare that this assignment is my own work in accordance with Seneca  Academic Policy.  No part *  of this assignment has been copied manually or electronically from any other source (including 3rd party web sites) or distributed to other students.
 
 Name: Kennedy Emefiena 
@@ -20,11 +20,11 @@ const cloudinary = require("cloudinary").v2;
 const streamifier = require("streamifier");
 const stripJs = require("strip-js");
 const upload = multer();
-const clientSessions = require("client-sessions");
-
+var clientSessions = require("client-sessions");
 const PORT = process.env.PORT || 8000;
 const app = express();
 app.use(express.static(__dirname + "/public"));
+app.use(express.urlencoded({ extended: true }));
 
 const exphbs = require("express-handlebars");
 app.engine(
@@ -70,12 +70,11 @@ cloudinary.config({
   secure: true,
 });
 
-
 app.use(
   clientSessions({
     cookieName: "session",
     secret: process.env.SECRETS,
-    duration: 24 * 60 * 60 * 1000,
+    duration: 15 * 60 * 1000,
     activeDuration: 1000 * 60 * 5,
   })
 );
@@ -86,13 +85,17 @@ app.use(function (req, res, next) {
 });
 
 function ensureLogin(req, res, next) {
-  if (!req.session.userName) {
+  if (!req.session.user) {
     res.redirect("/login");
   } else {
     next();
   }
 }
 
+app.use(function (req, res, next) {
+  res.locals.loggedIn = req.session.user ? true : false;
+  next();
+});
 
 app.use(function (req, res, next) {
   let route = req.path.substring(1);
@@ -113,55 +116,64 @@ app.get("/login", async (req, res) => {
   }
 });
 
-app.post("/login", (req, res) => {
+app.post("/login", async (req, res) => {
   req.body.userAgent = req.get("User-Agent");
-  authData
-    .checkUser(req.body)
-    .then((user) => {
+  try {
+    const user = await authData.checkUser(req.body);
+    if (user) {
+      // Add user details to session
       req.session.user = {
         userName: user.userName,
         email: user.email,
         loginHistory: user.loginHistory,
       };
       res.redirect("/items");
-    })
-    .catch((err) => {
-      res.render("login", { errorMessage: err, userName: req.body.userName });
-    });
+    } else {
+      res.render("login", {
+        errorMessage: "Invalid username or password",
+      });
+    }
+  } catch (err) {
+    res.render("login", { errorMessage: err });
+  }
 });
 
 app.get("/logout", (req, res) => {
   req.session.reset();
-  res.redirect("/");
+  res.redirect("/login");
 });
 
-app.get("register", async (req, res) => {
+app.get("/register", async (req, res) => {
+  await res.render("register", {
+    errorMessage: null,
+    successMessage: null,
+  });
+});
+
+app.post("/register", async (req, res) => {
+  const { userName, email, password } = req.body;
   try {
-    res.render("register");
-  } catch (error) {
-    res.status(500).send(error);
-  }
-});
-
-app.post("register", async (req, res) => {
-  authData
-    .registerUser(req.body)
-    .then(() => {
-      res.render("register", { successMessage: "User created" });
-    })
-    .catch((err) => {
-      res.render("register", {
-        errorMessage: err,
-        userName: req.body.userName,
-      });
+    const newUser = await authData.registerUser(req.body);
+    res.render("register", {
+      successMessage: "User created",
+      errorMessage: null,
     });
+    res.redirect("/");
+  } catch (err) {
+    console.error(err);
+    res.render("register", {
+      errorMessage: err,
+      userName,
+      successMessage: null,
+    });
+  }
 });
 
 app.get("/userHistory", ensureLogin, (req, res) => {
   res.render("userHistory");
 });
 
-app.get("/", async (req, res) => {
+app.get("/", ensureLogin, async (req, res) => {
   try {
     res.redirect("/about");
   } catch (error) {
@@ -280,18 +292,18 @@ app.get("/categories", ensureLogin, (req, res) => {
     });
 });
 
-app.get("/categories/add", (req, res) => {
+app.get("/categories/add", ensureLogin, (req, res) => {
   res.render("addCategory");
 });
 
-app.post("/categories/add", (req, res) => {
+app.post("/categories/add", ensureLogin, (req, res) => {
   storeService
     .addCategory(req.body)
     .then(() => res.redirect("/categories"))
     .catch((err) => res.status(500).send("Unable to add category"));
 });
 
-app.get("/categories/delete/:id", (req, res) => {
+app.get("/categories/delete/:id", ensureLogin, (req, res) => {
   storeService
     .deleteCategoryById(req.params.id)
     .then(() => res.redirect("/categories"))
@@ -300,7 +312,7 @@ app.get("/categories/delete/:id", (req, res) => {
     );
 });
 
-app.get("/items/delete/:id", (req, res) => {
+app.get("/items/delete/:id", ensureLogin, (req, res) => {
   storeService
     .deleteItemById(req.params.id)
     .then(() => res.redirect("/items"))
@@ -309,7 +321,7 @@ app.get("/items/delete/:id", (req, res) => {
     );
 });
 
-app.get("/published", (req, res) => {
+app.get("/published", ensureLogin, (req, res) => {
   itemData
     .getPublishedItems()
     .then((data) => {
@@ -320,7 +332,7 @@ app.get("/published", (req, res) => {
     });
 });
 
-app.get("/items", async (req, res) => {
+app.get("/items", ensureLogin, async (req, res) => {
   let queryPromise = null;
 
   if (req.query.category) {
@@ -340,7 +352,7 @@ app.get("/items", async (req, res) => {
     });
 });
 
-app.get("/items/add", async (req, res) => {
+app.get("/items/add", ensureLogin, async (req, res) => {
   try {
     res.render("addItem");
   } catch (error) {
@@ -348,49 +360,54 @@ app.get("/items/add", async (req, res) => {
   }
 });
 
-app.post("/items/add", upload.single("featureImage"), async (req, res) => {
-  if (req.file) {
-    let streamUpload = (req) => {
-      return new Promise((resolve, reject) => {
-        let stream = cloudinary.uploader.upload_stream((error, result) => {
-          if (result) {
-            resolve(result);
-          } else {
-            reject(error);
-          }
+app.post(
+  "/items/add",
+  ensureLogin,
+  upload.single("featureImage"),
+  async (req, res) => {
+    if (req.file) {
+      let streamUpload = (req) => {
+        return new Promise((resolve, reject) => {
+          let stream = cloudinary.uploader.upload_stream((error, result) => {
+            if (result) {
+              resolve(result);
+            } else {
+              reject(error);
+            }
+          });
+
+          streamifier.createReadStream(req.file.buffer).pipe(stream);
         });
+      };
 
-        streamifier.createReadStream(req.file.buffer).pipe(stream);
+      async function upload(req) {
+        let result = await streamUpload(req);
+
+        return result;
+      }
+
+      upload(req).then((uploaded) => {
+        processItem(uploaded.url);
       });
-    };
-
-    async function upload(req) {
-      let result = await streamUpload(req);
-
-      return result;
+    } else {
+      processItem("");
     }
 
-    upload(req).then((uploaded) => {
-      processItem(uploaded.url);
-    });
-  } else {
-    processItem("");
-  }
+    function processItem(imageUrl) {
+      req.body.featureImage = imageUrl;
 
-  function processItem(imageUrl) {
-    req.body.featureImage = imageUrl;
-
-    // TODO: Process the req.body and add it as a new Item before redirecting to /items
-    itemData
-      .addItem(req.body)
-      .then((item) => {
-        res.redirect("/items");
-      })
-      .catch((err) => {
-        res.status(500).send(err);
-      });
+      // TODO: Process the req.body and add it as a new Item before redirecting to /items
+      itemData
+        .addItem(req.body)
+        .then((item) => {
+          res.redirect("/items");
+        })
+        .catch((err) => {
+          res.status(500).send(err);
+        });
+    }
   }
-});
+);
 
 app.use((req, res) => {
   res.status(404).render("404");
