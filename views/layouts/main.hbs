@@ -34,6 +34,7 @@
 
         <!-- Collect the nav links, forms, and other content for toggling -->
         <div class="collapse navbar-collapse justify-content-between" id="navbarNav">
+           {{#if loggedIn}}
           <ul class="navbar-nav">
             {{#navLink "/shop"}}Shop{{/navLink}}
             {{#navLink "/about"}}About{{/navLink}}
@@ -42,7 +43,7 @@
             {{#navLink "/categories/add"}}Add Categories{{/navLink}}
             {{#navLink "/items/add"}}Add Item{{/navLink}}
           </ul>
-          {{#if loggedIn}}
+         
             <div class="btn btn-sm btn-light nav-item">
               <a href="/logout" class="btn btn-sm btn-light nav-link">Logout</a>
             </div>
